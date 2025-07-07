@@ -1,25 +1,25 @@
-``` mermaid
+```mermaid
 graph TD
-    subgraph ClientTier ["🖥️ Client Tier"]
+    subgraph ClientTier ["Client Tier"]
         ClientApp["Client Applications<br/>psql, Web Apps, etc."]
         LibPQ["Connection Libraries<br/>libpq, JDBC, ODBC"]
     end
 
-    subgraph PostgreSQLServer ["🐘 PostgreSQL Server Instance"]
-        subgraph ProcessMgmt ["⚙️ Process Management"]
+    subgraph PostgreSQLServer ["PostgreSQL Server Instance"]
+        subgraph ProcessMgmt ["Process Management"]
             Postmaster["Postmaster Process<br/>Main Server Process"]
             Backend["Backend Process<br/>postgres per connection"]
             ConfigFilesRef["Configuration Files<br/>postgresql.conf, pg_hba.conf"]
         end
 
-        subgraph QueryPipeline ["🔄 Query Processing Pipeline"]
+        subgraph QueryPipeline ["Query Processing Pipeline"]
             Parser["Parser<br/>SQL to Parse Tree"]
             Rewriter["Rewriter<br/>Parse Tree to Query Tree"]
             Optimizer["Query Optimizer<br/>Cost-Based Planning"]
             Executor["Executor<br/>Plan Execution"]
         end
 
-        subgraph BackgroundProcesses ["🔧 Background Processes"]
+        subgraph BackgroundProcesses ["Background Processes"]
             Checkpointer["Checkpointer<br/>Dirty Page Flushing"]
             BgWriter["Background Writer<br/>Async Page Writing"]
             WALWriter["WAL Writer<br/>Transaction Log Flushing"]
@@ -29,7 +29,7 @@ graph TD
             LogicalRepLauncher["Logical Replication<br/>Change Streaming"]
         end
 
-        subgraph MemoryLayer ["💾 Memory Structures"]
+        subgraph MemoryLayer ["Memory Structures"]
             SharedBuffers["Shared Buffer Cache<br/>Data Page Cache"]
             WALBuffers["WAL Buffers<br/>Transaction Log Buffer"]
             LockManager["Lock Manager<br/>Concurrency Control"]
@@ -38,7 +38,7 @@ graph TD
             OtherShared["Shared Memory<br/>Process Info, etc."]
         end
 
-        subgraph StorageLayer ["💽 Disk Storage"]
+        subgraph StorageLayer ["Disk Storage"]
             DataFiles["Data Files<br/>Tables and Indexes"]
             WALFiles["WAL Files<br/>Transaction Logs"]
             ControlFile["Control File<br/>Instance State"]
@@ -48,15 +48,22 @@ graph TD
         end
     end
 
+    %% Client Connections
     ClientApp --> LibPQ
     LibPQ --> Postmaster
+
+    %% Process Management
     Postmaster --> Backend
     Postmaster --> ConfigFilesRef
     Backend --> Parser
+
+    %% Query Processing Flow
     Parser --> Rewriter
     Rewriter --> Optimizer
     Optimizer --> Executor
     Optimizer --> SystemCatalogsMem
+
+    %% Background Services
     Postmaster --> Checkpointer
     Postmaster --> BgWriter
     Postmaster --> WALWriter
@@ -64,40 +71,58 @@ graph TD
     Postmaster --> Archiver
     Postmaster --> StatsCollector
     Postmaster --> LogicalRepLauncher
+
+    %% Memory Management
     Postmaster --> SharedBuffers
     Postmaster --> WALBuffers
     Postmaster --> LockManager
     Postmaster --> CLog
     Postmaster --> SystemCatalogsMem
     Postmaster --> OtherShared
+
+    %% Backend Memory Access
     Backend --> SharedBuffers
     Backend --> WALBuffers
     Backend --> LockManager
     Backend --> CLog
     Backend --> SystemCatalogsMem
     Backend --> OtherShared
+
+    %% Background Process Memory Access
     Checkpointer --> SharedBuffers
     BgWriter --> SharedBuffers
     WALWriter --> WALBuffers
     Autovacuum --> SharedBuffers
     StatsCollector --> SharedBuffers
     LogicalRepLauncher --> WALBuffers
+
+    %% Executor Memory Access
     Executor --> SharedBuffers
     Executor --> WALBuffers
+
+    %% WAL Processing
     WALBuffers --> WALWriter
     WALWriter --> WALFiles
     Archiver --> WALFiles
     Archiver --> ArchiveWALs
     LogicalRepLauncher --> WALFiles
+
+    %% Data Persistence
     SharedBuffers --> DataFiles
     DataFiles --> SharedBuffers
     Checkpointer --> DataFiles
     Checkpointer --> ControlFile
     BgWriter --> DataFiles
+
+    %% System Catalogs
     SystemCatalogsMem --> SystemCatalogsDisk
     SystemCatalogsDisk --> SystemCatalogsMem
+
+    %% Autovacuum Operations
     Autovacuum --> DataFiles
     Autovacuum --> SystemCatalogsMem
+
+    %% Statistics Collection
     Backend --> StatsCollector
     Checkpointer --> StatsCollector
     BgWriter --> StatsCollector
@@ -106,9 +131,14 @@ graph TD
     Archiver --> StatsCollector
     LogicalRepLauncher --> StatsCollector
     StatsCollector --> DataFiles
+
+    %% Configuration
     ConfigFilesRef --> ConfigFilesDisk
+
+    %% Logical Replication Output
     LogicalRepLauncher --> ClientApp
 
+    %% Styling
     classDef clientStyle fill:#e1f5fe,stroke:#01579b,stroke-width:3px
     classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
     classDef queryStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px
