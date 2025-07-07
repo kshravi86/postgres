@@ -1,0 +1,112 @@
+%% title: High-Level Architecture of PostgreSQL %%
+
+graph TD
+    subgraph Client Tier
+        ClientApp[Client Applications (e.g., psql, Web App)]
+        LibPQ[libpq / JDBC / ODBC / etc.]
+    end
+
+    subgraph PostgreSQL_Server_Instance [PostgreSQL Server Instance]
+        direction LR
+
+        subgraph Process_Management_and_Connection_Handling [Process Management & Connection Handling]
+            direction TD
+            Postmaster[Postmaster Process]
+            Backend[Backend Process (postgres - per connection)]
+            Postmaster -- Forks & Manages --> Backend
+            Postmaster -- Reads Initial Config --> ConfigFiles_DiskRef[(Configuration Files)]
+        end
+
+        subgraph Query_Processing [Backend Query Processing Pipeline]
+            direction TD
+            style Query_Processing fill:#f9f,stroke:#333,stroke-width:2px
+            Parser
+            Rewriter
+            Optimizer
+            Executor
+            Parser -- SQL String to Parse Tree --> Rewriter
+            Rewriter -- Parse Tree to Query Tree(s) --> Optimizer
+            Optimizer -- Accesses Metadata --> SystemCatalogs_Ref[(System Catalogs)]
+            Optimizer -- Query Tree to Execution Plan --> Executor
+        end
+        Backend -- Contains --> Query_Processing
+
+        subgraph Background_Services [Background Utility Processes]
+            direction TD
+            style Background_Services fill:#ccf,stroke:#333,stroke-width:2px
+            Checkpointer
+            BgWriter[Background Writer]
+            WALWriter[WAL Writer]
+            Autovacuum[Autovacuum Launcher & Workers]
+            Archiver[Archiver Process]
+            StatsCollector[Stats Collector]
+            LogicalRepLauncher[Logical Replication Launcher]
+        end
+        Postmaster -- Starts & Manages --> Background_Services
+
+        subgraph Memory_Structures [In-Memory Structures]
+            direction TD
+            style Memory_Structures fill:#lightgrey,stroke:#333,stroke-width:2px
+            SharedBuffers[Shared Buffer Cache]
+            WALBuffers[WAL Buffers]
+            LockManager[Lock Manager / Tables]
+            CLog[Transaction Status (CLOG)]
+            SystemCatalogs_Mem[(System Catalogs - In Memory View/Cache)]
+            OtherShared[Other Shared Data (e.g., Process Info)]
+        end
+        Postmaster -- Initializes --> Memory_Structures
+        Backend -- Interacts with --> Memory_Structures
+        Background_Services -- Interact with --> Memory_Structures
+
+        subgraph Disk_Storage [Persistent Disk Storage]
+            direction TD
+            style Disk_Storage fill:#cfc,stroke:#333,stroke-width:2px
+            DataFiles[Data Files (Tables, Indexes)]
+            WALFiles[WAL Files (Transaction Logs)]
+            ControlFile[Control File (Instance State)]
+            SystemCatalogs_Disk[System Catalogs (within Data Files)]
+            ConfigFiles_DiskRef[Configuration Files (postgresql.conf, pg_hba.conf)]
+            ArchiveWALs[Archived WALs (For PITR)]
+        end
+    end
+
+    %% Client Connections
+    ClientApp --> LibPQ
+    LibPQ -- TCP/IP or Unix Socket --> Postmaster
+
+    %% Query Processing Flow
+    Executor -- Reads/Writes Data Pages --> SharedBuffers
+    Executor -- Generates WAL Records --> WALBuffers % For DML
+
+    %% WAL Subsystem
+    WALBuffers --> WALWriter
+    WALWriter -- Flushes WAL Records --> WALFiles
+    Archiver -- Reads Completed --> WALFiles
+    Archiver -- Writes to --> ArchiveWALs
+    LogicalRepLauncher -- Decodes WAL --> WALFiles % For logical decoding
+
+    %% Data Persistence
+    SharedBuffers <--(Data Page I/O)--> DataFiles % Read/write data pages
+    Checkpointer -- Flushes Dirty Pages from SharedBuffers --> DataFiles
+    Checkpointer -- Updates Metadata --> ControlFile
+    BgWriter -- Writes Dirty Pages from SharedBuffers --> DataFiles
+
+    %% System Catalogs
+    SystemCatalogs_Mem <--(Cache/Sync)--> SystemCatalogs_Disk
+    Optimizer -- Uses Statistics & Metadata --> SystemCatalogs_Mem
+
+    %% Autovacuum
+    Autovacuum -- Reclaims Space & Prevents Wraparound --> DataFiles % VACUUM
+    Autovacuum -- Updates Statistics --> SystemCatalogs_Mem % ANALYZE
+
+    %% Statistics
+    Backend -- Reports Runtime Activity --> StatsCollector
+    Background_Services -- Report Activity --> StatsCollector
+    StatsCollector -- Periodically Flushes --> Disk_Storage % Or dedicated stats files
+
+    %% Linking abstract refs to concrete disk items
+    SystemCatalogs_Ref --> SystemCatalogs_Disk % Optimizer's logical access path
+    %% ConfigFiles_DiskRef is already defined in Disk_Storage, Postmaster reads it.
+
+    %% Logical Replication Output (Simplified)
+    LogicalRepLauncher -- Streams Logical Changes --> ClientApp % Or another PG instance / Consumer
