@@ -1,155 +1,45 @@
-```mermaid
 graph TD
-    subgraph ClientTier ["Client Tier"]
-        ClientApp["Client Applications<br/>psql, Web Apps, etc."]
-        LibPQ["Connection Libraries<br/>libpq, JDBC, ODBC"]
-    end
-
-    subgraph PostgreSQLServer ["PostgreSQL Server Instance"]
-        subgraph ProcessMgmt ["Process Management"]
-            Postmaster["Postmaster Process<br/>Main Server Process"]
-            Backend["Backend Process<br/>postgres per connection"]
-            ConfigFilesRef["Configuration Files<br/>postgresql.conf, pg_hba.conf"]
-        end
-
-        subgraph QueryPipeline ["Query Processing Pipeline"]
-            Parser["Parser<br/>SQL to Parse Tree"]
-            Rewriter["Rewriter<br/>Parse Tree to Query Tree"]
-            Optimizer["Query Optimizer<br/>Cost-Based Planning"]
-            Executor["Executor<br/>Plan Execution"]
-        end
-
-        subgraph BackgroundProcesses ["Background Processes"]
-            Checkpointer["Checkpointer<br/>Dirty Page Flushing"]
-            BgWriter["Background Writer<br/>Async Page Writing"]
-            WALWriter["WAL Writer<br/>Transaction Log Flushing"]
-            Autovacuum["Autovacuum<br/>Space Reclamation"]
-            Archiver["Archiver Process<br/>WAL Archiving"]
-            StatsCollector["Stats Collector<br/>Performance Metrics"]
-            LogicalRepLauncher["Logical Replication<br/>Change Streaming"]
-        end
-
-        subgraph MemoryLayer ["Memory Structures"]
-            SharedBuffers["Shared Buffer Cache<br/>Data Page Cache"]
-            WALBuffers["WAL Buffers<br/>Transaction Log Buffer"]
-            LockManager["Lock Manager<br/>Concurrency Control"]
-            CLog["Transaction Status<br/>CLOG/XACT"]
-            SystemCatalogsMem["System Catalogs Cache<br/>Metadata Cache"]
-            OtherShared["Shared Memory<br/>Process Info, etc."]
-        end
-
-        subgraph StorageLayer ["Disk Storage"]
-            DataFiles["Data Files<br/>Tables and Indexes"]
-            WALFiles["WAL Files<br/>Transaction Logs"]
-            ControlFile["Control File<br/>Instance State"]
-            SystemCatalogsDisk["System Catalogs<br/>Metadata Tables"]
-            ConfigFilesDisk["Configuration Files<br/>Settings and Security"]
-            ArchiveWALs["Archived WALs<br/>Point-in-Time Recovery"]
-        end
-    end
-
-    %% Client Connections
-    ClientApp --> LibPQ
-    LibPQ --> Postmaster
-
-    %% Process Management
-    Postmaster --> Backend
-    Postmaster --> ConfigFilesRef
-    Backend --> Parser
-
-    %% Query Processing Flow
-    Parser --> Rewriter
-    Rewriter --> Optimizer
-    Optimizer --> Executor
-    Optimizer --> SystemCatalogsMem
-
-    %% Background Services
-    Postmaster --> Checkpointer
-    Postmaster --> BgWriter
-    Postmaster --> WALWriter
-    Postmaster --> Autovacuum
-    Postmaster --> Archiver
-    Postmaster --> StatsCollector
-    Postmaster --> LogicalRepLauncher
-
-    %% Memory Management
-    Postmaster --> SharedBuffers
-    Postmaster --> WALBuffers
-    Postmaster --> LockManager
-    Postmaster --> CLog
-    Postmaster --> SystemCatalogsMem
-    Postmaster --> OtherShared
-
-    %% Backend Memory Access
-    Backend --> SharedBuffers
-    Backend --> WALBuffers
-    Backend --> LockManager
-    Backend --> CLog
-    Backend --> SystemCatalogsMem
-    Backend --> OtherShared
-
-    %% Background Process Memory Access
-    Checkpointer --> SharedBuffers
-    BgWriter --> SharedBuffers
-    WALWriter --> WALBuffers
-    Autovacuum --> SharedBuffers
-    StatsCollector --> SharedBuffers
-    LogicalRepLauncher --> WALBuffers
-
-    %% Executor Memory Access
-    Executor --> SharedBuffers
-    Executor --> WALBuffers
-
-    %% WAL Processing
-    WALBuffers --> WALWriter
-    WALWriter --> WALFiles
-    Archiver --> WALFiles
-    Archiver --> ArchiveWALs
-    LogicalRepLauncher --> WALFiles
-
-    %% Data Persistence
-    SharedBuffers --> DataFiles
-    DataFiles --> SharedBuffers
-    Checkpointer --> DataFiles
-    Checkpointer --> ControlFile
-    BgWriter --> DataFiles
-
-    %% System Catalogs
-    SystemCatalogsMem --> SystemCatalogsDisk
-    SystemCatalogsDisk --> SystemCatalogsMem
-
-    %% Autovacuum Operations
-    Autovacuum --> DataFiles
-    Autovacuum --> SystemCatalogsMem
-
-    %% Statistics Collection
-    Backend --> StatsCollector
-    Checkpointer --> StatsCollector
-    BgWriter --> StatsCollector
-    WALWriter --> StatsCollector
-    Autovacuum --> StatsCollector
-    Archiver --> StatsCollector
-    LogicalRepLauncher --> StatsCollector
-    StatsCollector --> DataFiles
-
-    %% Configuration
-    ConfigFilesRef --> ConfigFilesDisk
-
-    %% Logical Replication Output
-    LogicalRepLauncher --> ClientApp
-
-    %% Styling
-    classDef clientStyle fill:#e1f5fe,stroke:#01579b,stroke-width:3px
-    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
-    classDef queryStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px
-    classDef backgroundStyle fill:#e8f5e8,stroke:#1b5e20,stroke-width:3px
-    classDef memoryStyle fill:#fff8e1,stroke:#f57f17,stroke-width:3px
-    classDef storageStyle fill:#fce4ec,stroke:#880e4f,stroke-width:3px
-
-    class ClientApp,LibPQ clientStyle
-    class Postmaster,Backend,ConfigFilesRef processStyle
-    class Parser,Rewriter,Optimizer,Executor queryStyle
-    class Checkpointer,BgWriter,WALWriter,Autovacuum,Archiver,StatsCollector,LogicalRepLauncher backgroundStyle
-    class SharedBuffers,WALBuffers,LockManager,CLog,SystemCatalogsMem,OtherShared memoryStyle
-    class DataFiles,WALFiles,ControlFile,SystemCatalogsDisk,ConfigFilesDisk,ArchiveWALs storageStyle
-```
+    A[Client Applications] --> B[libpq/JDBC/ODBC]
+    B --> C[Postmaster Process]
+    
+    C --> D[Backend Process]
+    C --> E[Background Processes]
+    C --> F[Shared Memory]
+    
+    D --> G[Parser]
+    G --> H[Rewriter]
+    H --> I[Optimizer]
+    I --> J[Executor]
+    
+    E --> K[Checkpointer]
+    E --> L[WAL Writer]
+    E --> M[Autovacuum]
+    E --> N[Stats Collector]
+    E --> O[Archiver]
+    
+    F --> P[Shared Buffers]
+    F --> Q[WAL Buffers]
+    F --> R[Lock Manager]
+    F --> S[System Catalogs Cache]
+    
+    J --> P
+    J --> Q
+    L --> T[WAL Files]
+    K --> U[Data Files]
+    P --> U
+    O --> V[Archive WAL]
+    T --> V
+    
+    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef query fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef background fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef memory fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    classDef storage fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class A,B client
+    class C,D process
+    class G,H,I,J query
+    class E,K,L,M,N,O background
+    class F,P,Q,R,S memory
+    class T,U,V storage
